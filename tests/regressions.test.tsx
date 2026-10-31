@@ -2340,3 +2340,22 @@ test('mermaid entity decoding leaves style lines, unknown names and control code
   expect(decodeEntities('classDef x fill:#123;')).toBe('classDef x fill:#123;')
   expect(decodeEntities('A[x #foo; #10; #0;]')).toBe('A[x #foo; #10; #0;]')
 })
+
+test('mermaid entity decoding needs a # before a number', async () => {
+  expect(decodeEntities('A[R&65;D &x41; &lt;]')).toBe('A[R&65;D &x41; <]')
+  expect(decodeEntities('A[#65; &#66; &#x43; #x44;]')).toBe('A[A B C D]')
+  expect(mermaidText('flowchart LR\n  A["R&65;D"] --> B', false, 100)).toContain('R&65;D')
+})
+
+test('literal private-use glyphs in a diagram without entities are left alone', async () => {
+  const art = mermaidText('flowchart LR\n  A["\uE000 \uE001 \uE002"] --> B', false, 100)
+  expect(art).not.toBeNull()
+  expect(art!).toContain('\uE000 \uE001 \uE002')
+})
+
+test('bold marks match a label whose text carries entity codes', async () => {
+  const marks = inlineMarks('flowchart LR\n  A["<b>R#amp;D #quot;x#quot;</b>"] --> B')
+  expect(marks).toHaveLength(1)
+  expect(marks[0]![0].join('')).toBe('R&D "x"')
+  expect(marks[0]![1]).toEqual({ bold: true })
+})

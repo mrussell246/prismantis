@@ -85,7 +85,7 @@ const TAG_MARK: Record<string, keyof Mark> = { i: 'italic', em: 'italic', b: 'bo
 
 export const inlineMarks = (source: string): [string[], Mark][] =>
   [...source.matchAll(/<(i|em|b|strong|u|s|del)\b[^<>\n]*>([^<\n]+)<\/\1\s*>/gi)]
-    .map(m => [cells(m[2]!.trim()), { [TAG_MARK[m[1]!.toLowerCase()]!]: true }] as [string[], Mark])
+    .map(m => [cells(restoreHeld(decodeEntities(m[2]!.trim()))), { [TAG_MARK[m[1]!.toLowerCase()]!]: true }] as [string[], Mark])
 
 const fitted = new Map<string, ChartArt | null>()
 const artWidths = new Map<string, number>()
@@ -95,7 +95,7 @@ export const mermaidText = (source: string, ascii: boolean, columns: number, pie
 
 const HELD = '"|[](){}'
 const NAMED_ENTITY: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'", nbsp: ' ' }
-const ENTITY = /[&#](?:#?x([0-9a-f]{1,6})|#?(\d{1,7})|(lt|gt|amp|quot|apos|nbsp));/gi
+const ENTITY = /(?:(?:&#|#)(?:x([0-9a-f]{1,6})|(\d{1,7}))|[&#](lt|gt|amp|quot|apos|nbsp));/gi
 const STYLE_LINE = /^\s*(?:style|classDef|linkStyle)\b/
 const HELD_CELL = /[\uE000-\uE007]/g
 
@@ -120,6 +120,8 @@ export const decodeEntities = (source: string): string =>
     )
     .join('\n')
 
+const heldCount = (text: string): number => text.match(HELD_CELL)?.length ?? 0
+
 const restoreHeld = (text: string): string => text.replace(HELD_CELL, c => HELD[c.charCodeAt(0) - 0xe000]!)
 
 const restoredArt = (art: ChartArt): ChartArt => ({
@@ -130,8 +132,10 @@ const restoredArt = (art: ChartArt): ChartArt => ({
 
 const mermaidArt = (source: string, ascii: boolean, columns: number, pieColors: number): ChartArt | null =>
   remember(fitted, `${ascii}:${columns}:${pieColors}:${source}`, () => {
-    const art = drawSource(decodeEntities(source.replace(INLINE_TAG, '')), ascii, columns, pieColors)
-    return art === null ? null : restoredArt(art)
+    const plain = source.replace(INLINE_TAG, '')
+    const decoded = decodeEntities(plain)
+    const art = drawSource(decoded, ascii, columns, pieColors)
+    return art === null ? null : heldCount(decoded) > heldCount(plain) ? restoredArt(art) : art
   })
 
 const drawSource = (source: string, ascii: boolean, columns: number, pieColors: number): ChartArt | null => {
