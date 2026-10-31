@@ -96,18 +96,21 @@ export const mermaidText = (source: string, ascii: boolean, columns: number, pie
 const HELD = '"|[](){}'
 const NAMED_ENTITY: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'", nbsp: ' ' }
 const ENTITY = /(?:(?:&#|#)(?:x([0-9a-f]{1,6})|(\d{1,7}))|[&#](lt|gt|amp|quot|apos|nbsp));/gi
-const STYLE_LINE = /^\s*(?:style|classDef|linkStyle)\b/
+const STYLE_LINE = /^\s*(?:style|classDef|linkStyle|click)\b/
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}]/u
 const HELD_CELL = /[\uE000-\uE007]/g
 
 const entityChar = (hex: string | undefined, dec: string | undefined, name: string | undefined): string | null => {
   if (name) return NAMED_ENTITY[name.toLowerCase()]!
   const code = Number.parseInt((hex ?? dec)!, hex ? 16 : 10)
-  const printable = (code >= 32 && code < 127) || (code >= 160 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff))
-  return printable ? String.fromCodePoint(code) : null
+  if (code < 32 || code > 0x10ffff) return null
+  const ch = String.fromCodePoint(code)
+  return INVISIBLE.test(ch) ? null : ch
 }
 
-export const decodeEntities = (source: string): string =>
-  source
+export const decodeEntities = (source: string): string => {
+  const literal = heldCount(source) > 0
+  return source
     .split('\n')
     .map(line =>
       STYLE_LINE.test(line)
@@ -115,10 +118,11 @@ export const decodeEntities = (source: string): string =>
         : line.replace(ENTITY, (whole, hex, dec, name) => {
             const ch = entityChar(hex, dec, name)
             const held = ch === null ? -1 : HELD.indexOf(ch)
-            return ch === null ? whole : held === -1 ? ch : String.fromCharCode(0xe000 + held)
+            return ch === null || (held !== -1 && literal) ? whole : held === -1 ? ch : String.fromCharCode(0xe000 + held)
           }),
     )
     .join('\n')
+}
 
 const heldCount = (text: string): number => text.match(HELD_CELL)?.length ?? 0
 

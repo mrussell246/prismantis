@@ -2359,3 +2359,17 @@ test('bold marks match a label whose text carries entity codes', async () => {
   expect(marks[0]![0].join('')).toBe('R&D "x"')
   expect(marks[0]![1]).toEqual({ bold: true })
 })
+
+test('mermaid entity decoding refuses invisible and private-use code points and click lines', async () => {
+  expect(decodeEntities('A[x #8238; #8203; #57344; #127;]')).toBe('A[x #8238; #8203; #57344; #127;]')
+  expect(decodeEntities('click A "https://x/?a=1&amp;b=2#10;"')).toBe('click A "https://x/?a=1&amp;b=2#10;"')
+  expect(decodeEntities('A[#128512;]')).toBe('A[\u{1F600}]')
+})
+
+test('a diagram with literal private-use glyphs keeps them next to entity codes', async () => {
+  const art = mermaidText('flowchart LR\n  A["\uE000 #quot;q#quot; \uE001"] --> B', false, 100)
+  expect(art).not.toBeNull()
+  expect(art!).toContain('\uE000')
+  expect(art!).toContain('\uE001')
+  expect(art!).not.toContain('"')
+})
