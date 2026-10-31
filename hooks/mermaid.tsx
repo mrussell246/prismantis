@@ -93,16 +93,55 @@ const artWidth = (art: string) => remember(artWidths, art, () => Math.max(...art
 
 export const mermaidText = (source: string, ascii: boolean, columns: number, pieColors = 0): string | null => mermaidArt(source, ascii, columns, pieColors)?.text ?? null
 
+const HELD = '"|[](){}'
+const NAMED_ENTITY: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'", nbsp: ' ' }
+const ENTITY = /[&#](?:#?x([0-9a-f]{1,6})|#?(\d{1,7})|(lt|gt|amp|quot|apos|nbsp));/gi
+const STYLE_LINE = /^\s*(?:style|classDef|linkStyle)\b/
+const HELD_CELL = /[\uE000-\uE007]/g
+
+const entityChar = (hex: string | undefined, dec: string | undefined, name: string | undefined): string | null => {
+  if (name) return NAMED_ENTITY[name.toLowerCase()]!
+  const code = Number.parseInt((hex ?? dec)!, hex ? 16 : 10)
+  const printable = (code >= 32 && code < 127) || (code >= 160 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff))
+  return printable ? String.fromCodePoint(code) : null
+}
+
+export const decodeEntities = (source: string): string =>
+  source
+    .split('\n')
+    .map(line =>
+      STYLE_LINE.test(line)
+        ? line
+        : line.replace(ENTITY, (whole, hex, dec, name) => {
+            const ch = entityChar(hex, dec, name)
+            const held = ch === null ? -1 : HELD.indexOf(ch)
+            return ch === null ? whole : held === -1 ? ch : String.fromCharCode(0xe000 + held)
+          }),
+    )
+    .join('\n')
+
+const restoreHeld = (text: string): string => text.replace(HELD_CELL, c => HELD[c.charCodeAt(0) - 0xe000]!)
+
+const restoredArt = (art: ChartArt): ChartArt => ({
+  ...art,
+  text: restoreHeld(art.text),
+  ...(art.pie ? { pie: { ...art.pie, legend: art.pie.legend.map(restoreHeld), ...(art.pie.title === undefined ? {} : { title: restoreHeld(art.pie.title) }) } } : {}),
+})
+
 const mermaidArt = (source: string, ascii: boolean, columns: number, pieColors: number): ChartArt | null =>
   remember(fitted, `${ascii}:${columns}:${pieColors}:${source}`, () => {
-    source = source.replace(INLINE_TAG, '')
-    if (source.length > 8000 || source.split('\n').length > MAX_LINES) return null
-    const own = OWN[kindOf(source).toLowerCase()]
-    if (own) return own(source, ascii, columns, pieColors)
-    const art = draw(source, ascii, columns)
-    const text = art === null || artWidth(art) <= columns - 2 || !SIDEWAYS.test(source) ? art : (draw(source.replace(SIDEWAYS, '$1TD'), ascii, columns) ?? art)
-    return text === null ? null : { text, series: chartSeries(source, ascii, columns) }
+    const art = drawSource(decodeEntities(source.replace(INLINE_TAG, '')), ascii, columns, pieColors)
+    return art === null ? null : restoredArt(art)
   })
+
+const drawSource = (source: string, ascii: boolean, columns: number, pieColors: number): ChartArt | null => {
+  if (source.length > 8000 || source.split('\n').length > MAX_LINES) return null
+  const own = OWN[kindOf(source).toLowerCase()]
+  if (own) return own(source, ascii, columns, pieColors)
+  const art = draw(source, ascii, columns)
+  const text = art === null || artWidth(art) <= columns - 2 || !SIDEWAYS.test(source) ? art : (draw(source.replace(SIDEWAYS, '$1TD'), ascii, columns) ?? art)
+  return text === null ? null : { text, series: chartSeries(source, ascii, columns) }
+}
 
 const prepared = (padded: string) => unquoteCategories(padded.replace(/^(\s*%%[^\n]*\n)+/, '')).replace(/(-->|-\.->|==>|---|-\.-|===)[ \t]+\|/g, '$1|')
 

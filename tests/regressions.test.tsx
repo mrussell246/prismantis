@@ -5,7 +5,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import { helpText, setupParts, setupText, showcaseText } from '../hooks/help'
 import { inlineText, parse } from '../hooks/markdown'
 import { tableHtml, tableText } from '../hooks/html'
-import { inlineMarks, mermaidText, shortenEdgeLabels } from '../hooks/mermaid'
+import { decodeEntities, inlineMarks, mermaidText, shortenEdgeLabels } from '../hooks/mermaid'
 import type { TerminalEnv } from '../hooks/render'
 import { drawsHyperlinks, isReadOnlyCall, renderBashEdits, renderBlocks, tableArt, takesClickableMarks, takesEditorLinks, takesHttpLinks, width } from '../hooks/render'
 import { PRESET_NAMES, PRESETS } from '../hooks/presets'
@@ -2308,4 +2308,35 @@ test('copying a table keeps a <br> cell as one cell: a <br> in HTML, a quoted mu
   const table = tableOf('| a | b |\n|-|-|\n| one<br>**two** | x |')
   expect(tableHtml(table)).toContain('<td style="text-align: left">one<br><strong>two</strong></td>')
   expect(tableText(table)).toBe('a\tb\n"one\ntwo"\tx')
+})
+
+test('mermaid entity codes draw as the characters they stand for', async () => {
+  const raw = mermaidText('flowchart LR\n  A["List<String>"] --> B{"size > 0 & x"}', false, 100)
+  expect(raw).not.toBeNull()
+  for (const escaped of [
+    'flowchart LR\n  A["List#lt;String#gt;"] --> B{"size #gt; 0 #amp; x"}',
+    'flowchart LR\n  A["List&lt;String&gt;"] --> B{"size &gt; 0 &amp; x"}',
+    'flowchart LR\n  A["List#60;String#62;"] --> B{"size &#62; 0 &#x26; x"}',
+  ]) {
+    expect(mermaidText(escaped, false, 100)).toBe(raw)
+  }
+})
+
+test('mermaid entity codes for quotes and brackets stay inside the label', async () => {
+  const art = mermaidText('flowchart LR\n  A["say #quot;hi#quot; #124; #91;x#93;"] --> B', false, 100)
+  expect(art).not.toBeNull()
+  expect(art!).toContain('say "hi" | [x]')
+  expect(art!).not.toMatch(/[\uE000-\uE007]/)
+})
+
+test('mermaid entity codes work in sequence diagrams and pie charts', async () => {
+  expect(mermaidText('sequenceDiagram\n  A->>B: List#lt;T#gt;', false, 100)).toContain('List<T>')
+  const pie = mermaidText('pie\n  "a #lt; b" : 3\n  "c" : 1', false, 100)
+  expect(pie).toContain('a < b')
+})
+
+test('mermaid entity decoding leaves style lines, unknown names and control codes alone', async () => {
+  expect(decodeEntities('style A fill:#333,stroke:#999;')).toBe('style A fill:#333,stroke:#999;')
+  expect(decodeEntities('classDef x fill:#123;')).toBe('classDef x fill:#123;')
+  expect(decodeEntities('A[x #foo; #10; #0;]')).toBe('A[x #foo; #10; #0;]')
 })
