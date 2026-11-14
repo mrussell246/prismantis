@@ -93,12 +93,12 @@ const artWidth = (art: string) => remember(artWidths, art, () => Math.max(...art
 
 export const mermaidText = (source: string, ascii: boolean, columns: number, pieColors = 0): string | null => mermaidArt(source, ascii, columns, pieColors)?.text ?? null
 
-const HELD = '"|[](){}'
+const HELD = '"|[](){}<>'
 const NAMED_ENTITY: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'", nbsp: ' ' }
 const ENTITY = /(?:(?:&#|#)(?:x([0-9a-f]{1,6})|(\d{1,7}))|[&#](lt|gt|amp|quot|apos|nbsp));/gi
 const STYLE_LINE = /^\s*(?:style|classDef|linkStyle|click)\b/
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}]/u
-const HELD_CELL = /[\uE000-\uE007]/g
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Zl}\p{Zp}]/u
+const HELD_CELL = /[\uE000-\uE009]/g
 
 const entityChar = (hex: string | undefined, dec: string | undefined, name: string | undefined): string | null => {
   if (name) return NAMED_ENTITY[name.toLowerCase()]!
@@ -109,6 +109,7 @@ const entityChar = (hex: string | undefined, dec: string | undefined, name: stri
 }
 
 export const decodeEntities = (source: string): string => {
+  if (!/[&#]/.test(source)) return source
   const literal = heldCount(source) > 0
   return source
     .split('\n')

@@ -2326,7 +2326,7 @@ test('mermaid entity codes for quotes and brackets stay inside the label', async
   const art = mermaidText('flowchart LR\n  A["say #quot;hi#quot; #124; #91;x#93;"] --> B', false, 100)
   expect(art).not.toBeNull()
   expect(art!).toContain('say "hi" | [x]')
-  expect(art!).not.toMatch(/[\uE000-\uE007]/)
+  expect(art!).not.toMatch(/[\uE000-\uE009]/)
 })
 
 test('mermaid entity codes work in sequence diagrams and pie charts', async () => {
@@ -2342,7 +2342,7 @@ test('mermaid entity decoding leaves style lines, unknown names and control code
 })
 
 test('mermaid entity decoding needs a # before a number', async () => {
-  expect(decodeEntities('A[R&65;D &x41; &lt;]')).toBe('A[R&65;D &x41; <]')
+  expect(decodeEntities('A[R&65;D &x41; &lt;]')).toBe('A[R&65;D &x41; \uE008]')
   expect(decodeEntities('A[#65; &#66; &#x43; #x44;]')).toBe('A[A B C D]')
   expect(mermaidText('flowchart LR\n  A["R&65;D"] --> B', false, 100)).toContain('R&65;D')
 })
@@ -2372,4 +2372,11 @@ test('a diagram with literal private-use glyphs keeps them next to entity codes'
   expect(art!).toContain('\uE000')
   expect(art!).toContain('\uE001')
   expect(art!).not.toContain('"')
+})
+
+test('an entity-escaped br stays literal text and does not break the line', async () => {
+  const art = mermaidText('flowchart LR\n  A["a #lt;br#gt; b"] --> B', false, 100)
+  expect(art).not.toBeNull()
+  expect(art!).toContain('a <br> b')
+  expect(decodeEntities('A[x #8232; #8233;]')).toBe('A[x #8232; #8233;]')
 })
