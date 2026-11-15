@@ -118,18 +118,19 @@ const mermaidArt = (source: string, ascii: boolean, columns: number, pieColors: 
     return text === null ? null : { text, series: chartSeries(source, ascii, columns) }
   })
 
-const MERMAID_ENTITY = /#(\d{1,7}|[A-Za-z][A-Za-z\d]{1,31});/g
+const MERMAID_ENTITY = /&(?:#(?:\d{1,7}|[xX][\da-fA-F]{1,6})|[A-Za-z][A-Za-z\d]{1,31});|#(?:\d{1,7}|[A-Za-z][A-Za-z\d]{1,31});/g
 const SHIELD = '[]{}()|<>"'
 const SHIELDED = /[\uf100-\uf109]/g
 const STYLE_LINE = /^\s*(?:style|classDef|linkStyle)\b/
 const shielded = (ch: string) => [...ch].map(c => (SHIELD.includes(c) ? String.fromCharCode(0xf100 + SHIELD.indexOf(c)) : c)).join('')
-const entityChar = (m: string, e: string, shield: boolean): string => {
-  const ch = decodeEntities(/^\d/.test(e) ? `&#${e};` : `&${e};`)
-  if (ch === `&${e};` || ch.includes('\n')) return m
+const entityChar = (m: string, shield: boolean): string => {
+  const html = m.startsWith('&') ? m : `&${m.replace(/^#(?=[A-Za-z])/, '')}`
+  const ch = decodeEntities(html)
+  if (ch === html || ch.includes('\n')) return m
   return shield ? shielded(ch) : ch
 }
 const labelEntities = (source: string, shield: boolean): string =>
-  !source.includes('#') ? source : source.split('\n').map(line => (STYLE_LINE.test(line) ? line : line.replace(MERMAID_ENTITY, (m, e: string) => entityChar(m, e, shield)))).join('\n')
+  !/[&#]/.test(source) ? source : source.split('\n').map(line => (STYLE_LINE.test(line) ? line : line.replace(MERMAID_ENTITY, m => entityChar(m, shield)))).join('\n')
 const unshield = (text: string) => text.replace(SHIELDED, c => SHIELD[c.charCodeAt(0) - 0xf100]!)
 
 const prepared = (padded: string) => labelEntities(unquoteCategories(padded.replace(/^(\s*%%[^\n]*\n)+/, '')).replace(/(-->|-\.->|==>|---|-\.-|===)[ \t]+\|/g, '$1|'), true)

@@ -2927,6 +2927,16 @@ test('mermaid #entity; escapes draw as their characters, and style colors stay a
   expect(mermaidText('pie title Say #quot;hi#quot;\n  "A #amp; B" : 3\n  "C" : 2', false, 100)).toContain('Say "hi"')
 })
 
+test('mermaid &entity; escapes draw as their characters too, and a lone ampersand stays', () => {
+  const art = mermaidText('flowchart TD\n  A["List&lt;String&gt; &amp; &#60;x&#x3E; R&D &bogus;"] -->|a &amp; b| B', false, 100) ?? ''
+  expect(art).toContain('List<String> & <x> R&D &bogus;')
+  expect(art).toContain('a & b')
+  expect(art).not.toContain('&lt;')
+  expect(art).not.toContain('&#')
+  expect(mermaidText('sequenceDiagram\n  A->>B: List&lt;T&gt; &amp; more', false, 100)).toContain('List<T> & more')
+  expect(mermaidText('pie title Say &quot;hi&quot;\n  "A &amp; B" : 3\n  "C" : 2', false, 100)).toContain('Say "hi"')
+})
+
 test('backslash escapes draw the character alone and stop emphasis, but not in code or before letters', () => {
   const [para] = parse('\\*not em\\* \\# \\[x\\] \\_y\\_ a\\\\b C:\\Users\\x `\\*code\\*`', { numbers: false, paths: false })
   expect(para?.kind === 'paragraph' && para.inline).toEqual([{ kind: 'text', text: '*not em* # [x] _y_ a\\b C:\\Users\\x ' }, { kind: 'code', text: '\\*code\\*' }])
